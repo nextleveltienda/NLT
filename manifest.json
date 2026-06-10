@@ -1,0 +1,17 @@
+{
+  "name": "Next Level Tienda",
+  "short_name": "NL Tienda",
+  "description": "Panel de control — Hogar, Tecnología y Ropa",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090908",
+  "theme_color": "#cc26d6",
+  "orientation": "landscape-primary",
+  "icons": [
+    {
+      "src": "/icon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+}
