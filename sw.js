@@ -1,5 +1,5 @@
-const CACHE = 'nl-tienda-v1';
-const ASSETS = ['/', '/index.html'];
+const CACHE = 'nl-tienda-v2';
+const ASSETS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
