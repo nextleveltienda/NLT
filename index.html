@@ -629,11 +629,15 @@ async function ldCloud(key) {
   } catch(e) { return null; }
 }
 
-// Sobrescribir sv() para guardar en ambos lados
-sv(
+// sv() guarda en localStorage; svCloud disponible via window.svCloud
+let _svBusy = false;
 sv = function(key, val) {
-  try{localStorage.setItem(key,JSON.stringify(val));}catch(e){} // localStorage directo
-  if(TABLE_MAP[key]) svCloud(key, val); // Supabase async
+  try{localStorage.setItem(key,JSON.stringify(val));}catch(e){}
+  if(!_svBusy && window.svCloud && TABLE_MAP[key]){
+    _svBusy=true;
+    try{window.svCloud(key,val);}catch(e){}
+    _svBusy=false;
+  }
 }
 
 // ── CARGA INICIAL DESDE SUPABASE ────────────────────────────────────
