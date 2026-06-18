@@ -674,6 +674,7 @@ function showSyncBanner(msg) {
   b.textContent = '⟳ ' + msg;
   b.style.display = 'block';
 }
+window.svCloud=svCloud; window.sv=sv; window.ld=ld;
 function hideSyncBanner() {
   const b = document.getElementById('sync-banner');
   if(b) b.style.display = 'none';
@@ -2188,6 +2189,7 @@ async function confirmarPago(i){
   sv(KEYS.ing,S.ing);
   sv(KEYS.gas,S.gas);
   sv(KEYS.pagosprog,S.pagosprog);
+  if(window.svCloud){window.svCloud(KEYS.ing,S.ing);window.svCloud(KEYS.gas,S.gas);window.svCloud(KEYS.pagosprog,S.pagosprog);}
   renderPagos();renderDashPagosAlert();renderDashSaldoNegocios();renderFin();
   toast('Pago confirmado y registrado en Finanzas ✓');
 }
@@ -2231,6 +2233,7 @@ function guardarPagoParcial(){
   sv(KEYS.ing, S.ing);
   sv(KEYS.gas, S.gas);
   sv(KEYS.pagosprog, S.pagosprog);
+  if(window.svCloud){window.svCloud(KEYS.ing,S.ing);window.svCloud(KEYS.gas,S.gas);window.svCloud(KEYS.pagosprog,S.pagosprog);}
   closeModal('modal-pago-parcial');
   renderPagos();renderDashPagosAlert();renderDashSaldoNegocios();renderFin();
   toast('Pago parcial de '+fmtARS(monto)+' registrado ✓');
