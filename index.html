@@ -2188,9 +2188,6 @@ async function confirmarPago(i){
   sv(KEYS.ing,S.ing);
   sv(KEYS.gas,S.gas);
   sv(KEYS.pagosprog,S.pagosprog);
-  await svCloud(KEYS.ing,S.ing);
-  await svCloud(KEYS.gas,S.gas);
-  await svCloud(KEYS.pagosprog,S.pagosprog);
   renderPagos();renderDashPagosAlert();renderDashSaldoNegocios();renderFin();
   toast('Pago confirmado y registrado en Finanzas ✓');
 }
@@ -2234,9 +2231,6 @@ function guardarPagoParcial(){
   sv(KEYS.ing, S.ing);
   sv(KEYS.gas, S.gas);
   sv(KEYS.pagosprog, S.pagosprog);
-  svCloud(KEYS.ing, S.ing);
-  svCloud(KEYS.gas, S.gas);
-  svCloud(KEYS.pagosprog, S.pagosprog);
   closeModal('modal-pago-parcial');
   renderPagos();renderDashPagosAlert();renderDashSaldoNegocios();renderFin();
   toast('Pago parcial de '+fmtARS(monto)+' registrado ✓');
