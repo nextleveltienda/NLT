@@ -678,7 +678,7 @@ function showSyncBanner(msg) {
   b.textContent = '⟳ ' + msg;
   b.style.display = 'block';
 }
-window.svCloud=svCloud; window.sv=sv; window.ld=ld;
+window.svCloud=svCloud; window.sv=sv; window.ld=ld; window.TABLE_MAP=TABLE_MAP;
 function hideSyncBanner() {
   const b = document.getElementById('sync-banner');
   if(b) b.style.display = 'none';
@@ -709,7 +709,7 @@ function hideSyncBanner() {
     <div class="nav-item" onclick="playClick();nav('pagos',this)"><div class="nav-dot"></div><span class="nav-text">Pagos programados</span></div>
     <div class="nav-item" onclick="playClick();nav('pedidos',this)"><div class="nav-dot"></div><span class="nav-text">Pedidos</span></div>
     <div class="nav-item" onclick="playClick();nav('clientes',this)"><div class="nav-dot"></div><span class="nav-text">Clientes</span></div>
-    <div class="nav-item" onclick="playClick();nav('finanzas',this)"><div class="nav-dot"></div><span class="nav-text">Finanzas</span></div>
+    <div class="nav-item" onclick="playClick();nav('finanzas',this);renderFin()"><div class="nav-dot"></div><span class="nav-text">Finanzas</span></div>
 
     <div class="nav-section-label">Apps</div>
     <div class="nav-item" onclick="playClick();nav('stock',this)"><div class="nav-dot"></div><span class="nav-text">Control de Stock</span></div>
@@ -1486,7 +1486,8 @@ const KEYS={
   embedUrls:'nl2_embedUrls'
 };
 function ld(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}}
-function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
+function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}
+  if(window.svCloud&&window.TABLE_MAP&&window.TABLE_MAP[k]){try{window.svCloud(k,v);}catch(e){}}}
 
 // ---- STATE ----
 let S={
