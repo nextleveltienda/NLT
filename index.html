@@ -630,7 +630,7 @@ async function ldCloud(key) {
 }
 
 // Sobrescribir sv() para guardar en ambos lados
-const _svOrig = sv;
+sv(
 sv = function(key, val) {
   try{localStorage.setItem(key,JSON.stringify(val));}catch(e){} // localStorage directo
   if(TABLE_MAP[key]) svCloud(key, val); // Supabase async
@@ -2185,9 +2185,9 @@ async function confirmarPago(i){
     if(!S.gas)S.gas=[];
     S.gas.push({concepto:'[Pago programado] '+p.nombre,neg,fecha,tipo:'Pago',ars:montoFinal});
   }
-  _svOrig(KEYS.ing,S.ing);
-  _svOrig(KEYS.gas,S.gas);
-  _svOrig(KEYS.pagosprog,S.pagosprog);
+  sv(KEYS.ing,S.ing);
+  sv(KEYS.gas,S.gas);
+  sv(KEYS.pagosprog,S.pagosprog);
   await svCloud(KEYS.ing,S.ing);
   await svCloud(KEYS.gas,S.gas);
   await svCloud(KEYS.pagosprog,S.pagosprog);
@@ -2231,9 +2231,9 @@ function guardarPagoParcial(){
     if(!S.gas)S.gas=[];
     S.gas.push({concepto:'[Pago parcial] '+p.nombre,neg,fecha,tipo:'Pago',ars:monto});
   }
-  _svOrig(KEYS.ing, S.ing);
-  _svOrig(KEYS.gas, S.gas);
-  _svOrig(KEYS.pagosprog, S.pagosprog);
+  sv(KEYS.ing, S.ing);
+  sv(KEYS.gas, S.gas);
+  sv(KEYS.pagosprog, S.pagosprog);
   svCloud(KEYS.ing, S.ing);
   svCloud(KEYS.gas, S.gas);
   svCloud(KEYS.pagosprog, S.pagosprog);
