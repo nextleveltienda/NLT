@@ -1980,13 +1980,13 @@ function saveIng(){
   const ars=document.getElementById('i-ars').value;
   if(!ars){toast('Ingresá un monto');return;}
   S.ing.push({concepto:document.getElementById('i-concepto').value,neg:document.getElementById('i-neg').value,fecha:document.getElementById('i-fecha').value,tipo:document.getElementById('i-tipo').value,ars});
-  sv(KEYS.ing,S.ing);closeModal('modal-ing');renderFin();toast('Ingreso guardado ✓');
+  sv(KEYS.ing,S.ing);closeModal('modal-ing');renderFin();renderDash();toast('Ingreso guardado ✓');
 }
 function saveGas(){
   const ars=document.getElementById('g-ars').value;
   if(!ars){toast('Ingresá un monto');return;}
   S.gas.push({concepto:document.getElementById('g-concepto').value,neg:document.getElementById('g-neg').value,fecha:document.getElementById('g-fecha').value,tipo:document.getElementById('g-tipo').value,ars});
-  sv(KEYS.gas,S.gas);closeModal('modal-gas');renderFin();toast('Egreso guardado ✓');
+  sv(KEYS.gas,S.gas);closeModal('modal-gas');renderFin();renderDash();toast('Egreso guardado ✓');
 }
 function delIng(i){if(!confirm('¿Eliminar?'))return;S.ing.splice(i,1);sv(KEYS.ing,S.ing);renderFin();}
 function delGas(i){if(!confirm('¿Eliminar?'))return;S.gas.splice(i,1);sv(KEYS.gas,S.gas);renderFin();}
