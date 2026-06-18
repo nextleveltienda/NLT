@@ -631,7 +631,7 @@ async function ldCloud(key) {
 
 // Sobrescribir sv() para guardar en ambos lados
 const _svOrig = sv;
-function sv(key, val) {
+sv = function(key, val) {
   _svOrig(key, val); // localStorage inmediato
   if(TABLE_MAP[key]) svCloud(key, val); // Supabase async
 }
