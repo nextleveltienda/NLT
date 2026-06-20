@@ -3321,6 +3321,9 @@ async function stkRegistrarVenta() {
 
 // Alias para onclick de tabs en HTML
 function stkTabExec(key,el){ stkTabExecFn(key,el); }
+
+/* Serializa svCloud por tabla: evita que dos guardados simultaneos se pisen (delete+reinsert) y dupliquen filas */
+;(function(){if(window.svCloud&&!window.__svCloudSerialized){var _o=window.svCloud,_q={};window.svCloud=function(k,a){var p=_q[k]||Promise.resolve();var n=p.then(function(){return _o(k,a);},function(){return _o(k,a);});_q[k]=n;return n;};window.__svCloudSerialized=true;}})();
 </script>
 </body>
 </html>
