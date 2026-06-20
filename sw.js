@@ -1,4 +1,4 @@
-const CACHE = 'nl-tienda-v3';
+const CACHE = 'nl-tienda-v4';
 const ASSETS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -18,9 +18,11 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  // Nunca interceptar requests cross-origin (API de Supabase, CDNs): siempre a la red, sin cachear
+  if (url.origin !== self.location.origin) return;
   const isDoc = req.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.html');
   if (isDoc) {
-    // network-first: siempre baja el HTML mas nuevo, fallback al cache offline
+    // network-first para el HTML, fallback al cache offline
     e.respondWith(
       fetch(req).then(net => {
         const cl = net.clone();
@@ -30,7 +32,7 @@ self.addEventListener('fetch', e => {
     );
     return;
   }
-  // cache-first para assets estaticos
+  // assets estaticos same-origin: cache-first
   e.respondWith(
     caches.match(req).then(cached => cached || fetch(req).then(net => {
       if (net && net.status === 200) {
