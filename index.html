@@ -631,24 +631,21 @@ async function ldCloud(key) {
   try {
     const { data, error } = await supa.from(table).select('*').order('created_at', {ascending:true});
     if(error) return null;
-    // Limpiar columnas de supabase
+    // Preservar id (necesario para upsert), eliminar solo created_at de Supabase
     return data.map(r => {
       const clean = {...r};
-      delete clean.id; delete clean.created_at;
+      delete clean.created_at;
       return clean;
     });
   } catch(e) { return null; }
 }
 
-// sv() guarda en localStorage; svCloud disponible via window.svCloud
-let _svBusy = false;
-sv = function(key, val) {
-  try{localStorage.setItem(key,JSON.stringify(val));}catch(e){}
-  if(!_svBusy && window.svCloud && TABLE_MAP[key]){
-    _svBusy=true;
-    try{window.svCloud(key,val);}catch(e){}
-    _svBusy=false;
-  }
+// ── FUNCIONES BASE DE STORAGE ────────────────────────────────────────
+function ld(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}}
+function uid(){return crypto.randomUUID();}
+function sv(k,v){
+  try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}
+  if(window.svCloud&&k&&k.startsWith('nl2_')){try{window.svCloud(k,v);}catch(e){}}
 }
 
 // ── CARGA INICIAL DESDE SUPABASE ────────────────────────────────────
@@ -1496,9 +1493,6 @@ const KEYS={
   angulos:'nl2_angulos',provs:'nl2_provs',
   embedUrls:'nl2_embedUrls'
 };
-function ld(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}}
-function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}
-  if(window.svCloud&&k&&k.startsWith("nl2_")){try{window.svCloud(k,v);}catch(e){}}}
 
 // ---- STATE ----
 let S={
@@ -1534,7 +1528,6 @@ const RUBRO_COLORS={Calzado:'#d4a832',Indumentaria:'#7a4ab8',Tecnología:'#3d6aa
 const AVATAR_COLORS=['#d4a832','#3d8a5a','#3d6aaa','#7a4ab8','#b84848','#c89628'];
 
 // ---- HELPERS ----
-function uid(){return crypto.randomUUID()}
 function fmtARS(v){return '$'+Number(v||0).toLocaleString('es-AR')}
 function avatarChip(name){
   const initials=(name||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
