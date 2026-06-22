@@ -1534,7 +1534,7 @@ const RUBRO_COLORS={Calzado:'#d4a832',Indumentaria:'#7a4ab8',Tecnología:'#3d6aa
 const AVATAR_COLORS=['#d4a832','#3d8a5a','#3d6aaa','#7a4ab8','#b84848','#c89628'];
 
 // ---- HELPERS ----
-function uid(){return Date.now()+'_'+Math.random().toString(36).slice(2,7)}
+function uid(){return crypto.randomUUID()}
 function fmtARS(v){return '$'+Number(v||0).toLocaleString('es-AR')}
 function avatarChip(name){
   const initials=(name||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
