@@ -2001,26 +2001,41 @@ function openExternal(appId){
 // ---- EXPORTAR ----
 function renderExp(){
   document.getElementById('exp-stats').innerHTML=`
+    <div class="stat-box"><div class="n">${S.ing.length}</div><div class="l">Ingresos</div></div>
+    <div class="stat-box"><div class="n">${S.gas.length}</div><div class="l">Egresos</div></div>
+    <div class="stat-box"><div class="n">${(S.pagosprog||[]).length}</div><div class="l">Pagos prog.</div></div>
+    <div class="stat-box"><div class="n">${S.pedidos.length}</div><div class="l">Pedidos</div></div>
+    <div class="stat-box"><div class="n">${S.provs.length}</div><div class="l">Proveedores</div></div>
+    <div class="stat-box"><div class="n">${S.clients.length}</div><div class="l">Clientes</div></div>
     <div class="stat-box"><div class="n">${S.tasks.length}</div><div class="l">Tareas</div></div>
     <div class="stat-box"><div class="n">${S.content.length}</div><div class="l">Contenido</div></div>
     <div class="stat-box"><div class="n">${S.hists.length}</div><div class="l">Historias</div></div>
     <div class="stat-box"><div class="n">${S.angulos.length}</div><div class="l">Ángulos</div></div>
-    <div class="stat-box"><div class="n">${S.provs.length}</div><div class="l">Proveedores</div></div>
     <div class="stat-box"><div class="n">${S.mets.length}</div><div class="l">Métricas</div></div>
-    <div class="stat-box"><div class="n">${S.pedidos.length}</div><div class="l">Pedidos</div></div>
-    <div class="stat-box"><div class="n">${S.clients.length}</div><div class="l">Clientes</div></div>
-    <div class="stat-box"><div class="n">${S.ing.length}</div><div class="l">Ingresos</div></div>
-    <div class="stat-box"><div class="n">${S.gas.length}</div><div class="l">Egresos</div></div>
   `;
 }
 function exportData(){
-  const data={};
+  const data={
+    _meta:{
+      version:'v1.0-stable',
+      fecha: new Date().toISOString(),
+      totales:{
+        ingresos: S.ing.length,
+        egresos: S.gas.length,
+        pagosprog: (S.pagosprog||[]).length,
+        pedidos: S.pedidos.length,
+        proveedores: S.provs.length,
+        clientes: S.clients.length,
+        tareas: S.tasks.length,
+      }
+    }
+  };
   Object.entries(KEYS).forEach(([k,key])=>{data[key]=ld(key,null);});
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href=url;a.download=`crm-backup-${new Date().toISOString().split('T')[0]}.json`;
-  a.click();URL.revokeObjectURL(url);toast('Exportado ✓');
+  a.href=url;a.download=`nlt-backup-${new Date().toISOString().split('T')[0]}.json`;
+  a.click();URL.revokeObjectURL(url);toast('Backup completo exportado ✓');
 }
 function importData(e){
   const file=e.target.files[0];if(!file)return;
@@ -2028,9 +2043,12 @@ function importData(e){
   reader.onload=ev=>{
     try{
       const data=JSON.parse(ev.target.result);
+      // _meta es solo informativo, no se importa
       Object.entries(KEYS).forEach(([k,key])=>{if(data[key]!==undefined){sv(key,data[key]);S[k]=data[key];}});
-      toast('Importado correctamente ✓');renderExp();
-    }catch{toast('Error al importar');}
+      if(data._meta) toast(`Backup del ${data._meta.fecha?.split('T')[0]||'?'} importado ✓`);
+      else toast('Importado correctamente ✓');
+      renderDash();renderExp();
+    }catch{toast('Error al importar: archivo inválido');}
   };
   reader.readAsText(file);e.target.value='';
 }
