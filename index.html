@@ -609,9 +609,34 @@ async function ldCloud(key) {
 // ── FUNCIONES BASE DE STORAGE ────────────────────────────────────────
 function ld(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}}
 function uid(){return crypto.randomUUID();}
+// Escrituras en vuelo hacia Supabase, para poder esperarlas antes de cerrar la app
+const _pendingWrites = new Set();
+function _trackWrite(p){
+  if(!p || typeof p.finally!=='function') return p;
+  _pendingWrites.add(p);
+  p.finally(()=>_pendingWrites.delete(p));
+  return p;
+}
+async function flushPending(){
+  if(_pendingWrites.size) await Promise.allSettled([..._pendingWrites]);
+}
+
+// Une nube + local por id. La nube es autoritativa para filas presentes en ambos;
+// las filas que sólo existen en local (subida aún pendiente) se conservan: así no se
+// pierden los registros recién creados que todavía no llegaron a Supabase.
+function mergeById(local, cloud){
+  const byId = new Map();
+  for(const r of (cloud||[])){ if(r && typeof r==='object') byId.set(r.id || (r.id=uid()), r); }
+  for(const r of (local||[])){ if(r && typeof r==='object' && r.id && !byId.has(r.id)) byId.set(r.id, r); }
+  return [...byId.values()];
+}
+
 function sv(k,v){
+  // Asignar un id estable a cada fila ANTES de persistir, para que local y nube
+  // compartan el mismo id y la fusión al recargar no duplique ni pierda datos.
+  if(Array.isArray(v)) v.forEach(r=>{ if(r && typeof r==='object' && !r.id) r.id=uid(); });
   try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}
-  if(window.svCloud&&k&&k.startsWith('nl2_')){try{window.svCloud(k,v);}catch(e){}}
+  if(window.svCloud&&k&&k.startsWith('nl2_')){try{_trackWrite(window.svCloud(k,v));}catch(e){}}
 }
 
 // ── CARGA INICIAL DESDE SUPABASE ────────────────────────────────────
@@ -619,10 +644,11 @@ async function loadFromCloud() {
   showSyncBanner('Sincronizando con la nube...');
   const keys = Object.keys(TABLE_MAP);
   for(const key of keys) {
-    const data = await ldCloud(key);
-    if(data && data.length > 0) {
-      localStorage.setItem(key, JSON.stringify(data));
-    }
+    const cloud = await ldCloud(key);
+    if(cloud === null) continue; // error de red: conservar lo local intacto, no pisar
+    const local = ld(key, []);
+    const merged = mergeById(local, cloud); // conserva filas locales aún no subidas
+    localStorage.setItem(key, JSON.stringify(merged));
   }
   // Recargar estado desde cloud
   S.ing       = ld('nl2_ing',[]);
@@ -664,7 +690,12 @@ async function migrateToSupabase() {
   localStorage.removeItem('nl2_provs_loaded_v1');
 }
 
-window.svCloud=svCloud; window.sv=sv; window.ld=ld;
+window.svCloud=svCloud; window.sv=sv; window.ld=ld; window.flushPending=flushPending;
+
+// Terminar las subidas pendientes antes de que la app se cierre o pase a segundo plano
+// (en PWA/móvil 'visibilitychange'->hidden es el evento confiable al cerrar/cambiar de app).
+window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') flushPending(); });
+window.addEventListener('pagehide', ()=>{ flushPending(); });
 function hideSyncBanner() {
   const b = document.getElementById('sync-banner');
   if(b) b.style.display = 'none';
@@ -2195,7 +2226,6 @@ async function confirmarPago(i){
   sv(KEYS.ing,S.ing);
   sv(KEYS.gas,S.gas);
   sv(KEYS.pagosprog,S.pagosprog);
-  if(window.svCloud){window.svCloud(KEYS.ing,S.ing);window.svCloud(KEYS.gas,S.gas);window.svCloud(KEYS.pagosprog,S.pagosprog);}
   renderPagos();renderDashPagosAlert();renderDashSaldoNegocios();renderFin();
   toast('Pago confirmado y registrado en Finanzas ✓');
 }
@@ -2239,7 +2269,6 @@ function guardarPagoParcial(){
   sv(KEYS.ing, S.ing);
   sv(KEYS.gas, S.gas);
   sv(KEYS.pagosprog, S.pagosprog);
-  if(window.svCloud){window.svCloud(KEYS.ing,S.ing);window.svCloud(KEYS.gas,S.gas);window.svCloud(KEYS.pagosprog,S.pagosprog);}
   closeModal('modal-pago-parcial');
   renderPagos();renderDashPagosAlert();renderDashSaldoNegocios();renderFin();
   toast('Pago parcial de '+fmtARS(monto)+' registrado ✓');
