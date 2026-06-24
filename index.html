@@ -557,37 +557,48 @@ const TABLE_MAP = {
   nl2_angulos:   'nlt_angulos',
 };
 
-// Guardar en Supabase: upsert por id (solo toca filas que cambiaron) + borra las eliminadas
+// Guardar = SOLO upsert (insert/update). NUNCA borra filas acá: un guardado jamás
+// debe eliminar datos de la nube. Los borrados son explícitos vía delCloud().
+// (Antes esta función borraba "lo que no estuviera en el array local" y también
+//  vaciaba la tabla si el array venía vacío → con un array parcial/transitorio se
+//  perdían datos y el total se revertía. Esa era la causa raíz de los bugs.)
 async function svCloud(key, arr) {
   const table = TABLE_MAP[key];
   if(!table) return;
+  if(!Array.isArray(arr) || !arr.length) return; // nada que subir; no tocar la nube
   try {
-    if(!arr || !arr.length) {
-      // Array vacío: borrar todo
-      await supa.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      return;
-    }
-    // Asegurar que cada fila tenga id antes de upsert
-    arr.forEach(r => { if(!r.id) r.id = uid(); });
-
-    // Upsert en chunks de 50 (insert o update según si el id ya existe)
+    arr.forEach(r => { if(r && !r.id) r.id = uid(); });
     for(let i=0; i<arr.length; i+=50) {
-      const chunk = arr.slice(i,i+50).map(r => {
-        const row = {...r};
-        if(row.vars && Array.isArray(row.vars)) row.vars = row.vars;
-        if(row.pc && Array.isArray(row.pc)) row.pc = row.pc;
-        if(row.uc && Array.isArray(row.uc)) row.uc = row.uc;
-        return row;
-      });
+      const chunk = arr.slice(i,i+50).map(r => ({...r}));
       await supa.from(table).upsert(chunk, { onConflict: 'id', ignoreDuplicates: false });
     }
+  } catch(e) { console.warn('svCloud upsert error:', e); }
+}
 
-    // Borrar en Supabase las filas que ya no están en el array local
-    const localIds = arr.map(r => r.id).filter(Boolean);
-    if(localIds.length) {
-      await supa.from(table).delete().not('id', 'in', `(${localIds.map(id=>`"${id}"`).join(',')})`);
+// Borrado explícito de filas por id (se llama desde cada función de eliminar)
+async function delCloud(key, ids) {
+  const table = TABLE_MAP[key];
+  if(!table) return;
+  const list = (Array.isArray(ids) ? ids : [ids]).filter(Boolean);
+  if(!list.length) return;
+  try { await supa.from(table).delete().in('id', list); }
+  catch(e) { console.warn('delCloud error:', e); }
+}
+
+// Reemplazo TOTAL de una tabla. Operación destructiva deliberada: SOLO la usa
+// importData (restaurar backup), nunca un guardado normal.
+async function replaceCloud(key, arr) {
+  const table = TABLE_MAP[key];
+  if(!table) return;
+  try {
+    const safe = Array.isArray(arr) ? arr : [];
+    safe.forEach(r => { if(r && !r.id) r.id = uid(); });
+    // Reemplazo total inequívoco: vaciar la tabla y reinsertar el set del backup
+    await supa.from(table).delete().neq('id','00000000-0000-0000-0000-000000000000');
+    for(let i=0; i<safe.length; i+=50) {
+      await supa.from(table).upsert(safe.slice(i,i+50).map(r=>({...r})), { onConflict: 'id', ignoreDuplicates: false });
     }
-  } catch(e) { console.warn('svCloud error:', e); }
+  } catch(e) { console.warn('replaceCloud error:', e); }
 }
 
 // Leer desde Supabase
@@ -691,6 +702,7 @@ async function migrateToSupabase() {
 }
 
 window.svCloud=svCloud; window.sv=sv; window.ld=ld; window.flushPending=flushPending;
+window.delCloud=delCloud; window.replaceCloud=replaceCloud;
 
 // Terminar las subidas pendientes antes de que la app se cierre o pase a segundo plano
 // (en PWA/móvil 'visibilitychange'->hidden es el evento confiable al cerrar/cambiar de app).
@@ -1784,7 +1796,7 @@ function toggleTask(id){
 function delTask(id){
   if(!confirm('¿Eliminar tarea?'))return;
   S.tasks=S.tasks.filter(x=>x.id!==id);
-  sv(KEYS.tasks,S.tasks);renderAcc();
+  sv(KEYS.tasks,S.tasks);delCloud(KEYS.tasks,id);renderAcc();
 }
 function saveTask(){
   const texto=document.getElementById('t-texto').value.trim();
@@ -1852,8 +1864,8 @@ function saveHist(){
   S.hists.push({id:uid(),fecha:document.getElementById('h-fecha').value,tipo:document.getElementById('h-tipo').value,angulo:document.getElementById('h-angulo').value,formato:document.getElementById('h-formato').value,hook:document.getElementById('h-hook').value,guion:document.getElementById('h-guion').value,cta:document.getElementById('h-cta').value,estado:document.getElementById('h-estado').value});
   sv(KEYS.hists,S.hists);closeModal('modal-hist');renderCont();toast('Historia guardada ✓');
 }
-function delContent(i){if(!confirm('¿Eliminar?'))return;S.content.splice(i,1);sv(KEYS.content,S.content);renderCont();}
-function delHist(i){if(!confirm('¿Eliminar?'))return;S.hists.splice(i,1);sv(KEYS.hists,S.hists);renderCont();}
+function delContent(i){if(!confirm('¿Eliminar?'))return;const _d=S.content.splice(i,1)[0];sv(KEYS.content,S.content);if(_d)delCloud(KEYS.content,_d.id);renderCont();}
+function delHist(i){if(!confirm('¿Eliminar?'))return;const _d=S.hists.splice(i,1)[0];sv(KEYS.hists,S.hists);if(_d)delCloud(KEYS.hists,_d.id);renderCont();}
 
 // ---- ÁNGULOS ----
 function renderAng(){
@@ -1881,7 +1893,7 @@ function saveAngulo(){
   S.angulos.push({id:uid(),angulo:document.getElementById('a-angulo').value,tipo:document.getElementById('a-tipo').value,ad:document.getElementById('a-ad').value,pc:getChips('chips-pc'),uc:getChips('chips-uc')});
   sv(KEYS.angulos,S.angulos);closeModal('modal-angulo');renderAng();toast('Ángulo guardado ✓');
 }
-function delAngulo(i){if(!confirm('¿Eliminar?'))return;S.angulos.splice(i,1);sv(KEYS.angulos,S.angulos);renderAng();}
+function delAngulo(i){if(!confirm('¿Eliminar?'))return;const _d=S.angulos.splice(i,1)[0];sv(KEYS.angulos,S.angulos);if(_d)delCloud(KEYS.angulos,_d.id);renderAng();}
 
 // ---- PROVEEDORES ----
 function setProvFilter(f,el){
@@ -1910,7 +1922,7 @@ function saveProv(){
   S.provs.push({id:uid(),nombre:document.getElementById('p-nombre').value,rubro:document.getElementById('p-rubro').value,contacto:document.getElementById('p-contacto').value,zona:document.getElementById('p-zona').value,notas:document.getElementById('p-notas').value,vars:getChips('chips-pvar')});
   sv(KEYS.provs,S.provs);closeModal('modal-prov');renderProv();toast('Proveedor guardado ✓');
 }
-function delProv(i){if(!confirm('¿Eliminar?'))return;S.provs.splice(i,1);sv(KEYS.provs,S.provs);renderProv();}
+function delProv(i){if(!confirm('¿Eliminar?'))return;const _d=S.provs.splice(i,1)[0];sv(KEYS.provs,S.provs);if(_d)delCloud(KEYS.provs,_d.id);renderProv();}
 
 // ---- MÉTRICAS ----
 function renderMet(){
@@ -1938,7 +1950,7 @@ function saveMet(){
   S.mets.push({id:uid(),fecha:document.getElementById('m-fecha').value,tipo:document.getElementById('m-tipo').value,angulo:document.getElementById('m-angulo').value,cta:document.getElementById('m-cta').value,com:document.getElementById('m-com').value,segs:document.getElementById('m-segs').value,leads:document.getElementById('m-leads').value,ventas:document.getElementById('m-ventas').value,pc:document.getElementById('m-pc').value,uc:document.getElementById('m-uc').value});
   sv(KEYS.mets,S.mets);closeModal('modal-met');renderMet();toast('Métrica guardada ✓');
 }
-function delMet(i){if(!confirm('¿Eliminar?'))return;S.mets.splice(i,1);sv(KEYS.mets,S.mets);renderMet();}
+function delMet(i){if(!confirm('¿Eliminar?'))return;const _d=S.mets.splice(i,1)[0];sv(KEYS.mets,S.mets);if(_d)delCloud(KEYS.mets,_d.id);renderMet();}
 
 // ---- CLIENTES ----
 function renderCli(){
@@ -1956,7 +1968,7 @@ function saveCli(){
   S.clients.push({id:uid(),nombre:document.getElementById('cl-nombre').value,inicio:document.getElementById('cl-inicio').value,fin:document.getElementById('cl-fin').value,pp:document.getElementById('cl-pp').value,estado:document.getElementById('cl-estado').value,paso:document.getElementById('cl-paso').value});
   sv(KEYS.clients,S.clients);closeModal('modal-cli');renderCli();toast('Cliente guardado ✓');
 }
-function delCli(i){if(!confirm('¿Eliminar?'))return;S.clients.splice(i,1);sv(KEYS.clients,S.clients);renderCli();}
+function delCli(i){if(!confirm('¿Eliminar?'))return;const _d=S.clients.splice(i,1)[0];sv(KEYS.clients,S.clients);if(_d)delCloud(KEYS.clients,_d.id);renderCli();}
 
 // ---- FINANZAS ----
 function renderFin(){
@@ -2001,8 +2013,8 @@ function saveGas(){
   S.gas.push({id:uid(),concepto:document.getElementById('g-concepto').value,neg:document.getElementById('g-neg').value,fecha:document.getElementById('g-fecha').value,tipo:document.getElementById('g-tipo').value,ars});
   sv(KEYS.gas,S.gas);closeModal('modal-gas');renderFin();renderDash();toast('Egreso guardado ✓');
 }
-function delIng(i){if(!confirm('¿Eliminar?'))return;S.ing.splice(i,1);sv(KEYS.ing,S.ing);renderFin();}
-function delGas(i){if(!confirm('¿Eliminar?'))return;S.gas.splice(i,1);sv(KEYS.gas,S.gas);renderFin();}
+function delIng(i){if(!confirm('¿Eliminar?'))return;const _d=S.ing.splice(i,1)[0];sv(KEYS.ing,S.ing);if(_d)delCloud(KEYS.ing,_d.id);renderFin();}
+function delGas(i){if(!confirm('¿Eliminar?'))return;const _d=S.gas.splice(i,1)[0];sv(KEYS.gas,S.gas);if(_d)delCloud(KEYS.gas,_d.id);renderFin();}
 
 // ---- EMBED APPS ----
 function renderEmbed(appId){
@@ -2069,13 +2081,21 @@ function exportData(){
   a.click();URL.revokeObjectURL(url);toast('Backup completo exportado ✓');
 }
 function importData(e){
-  const file=e.target.files[0];if(!file)return;
+  const file=e.target.files[0];if(!file){return;}
+  if(!confirm('Importar este backup REEMPLAZA todos los datos actuales (local y en la nube). ¿Continuar?')){e.target.value='';return;}
   const reader=new FileReader();
   reader.onload=ev=>{
     try{
       const data=JSON.parse(ev.target.result);
       // _meta es solo informativo, no se importa
-      Object.entries(KEYS).forEach(([k,key])=>{if(data[key]!==undefined){sv(key,data[key]);S[k]=data[key];}});
+      Object.entries(KEYS).forEach(([k,key])=>{
+        if(data[key]===undefined) return;
+        const val=data[key];
+        if(Array.isArray(val)) val.forEach(r=>{ if(r && typeof r==='object' && !r.id) r.id=uid(); }); // ids estables
+        try{ localStorage.setItem(key, JSON.stringify(val)); }catch(_e){}
+        S[k]=val;
+        if(String(key).startsWith('nl2_') && window.replaceCloud) replaceCloud(key, val); // reemplazo deliberado en la nube
+      });
       if(data._meta) toast(`Backup del ${data._meta.fecha?.split('T')[0]||'?'} importado ✓`);
       else toast('Importado correctamente ✓');
       renderDash();renderExp();
@@ -2276,8 +2296,9 @@ function guardarPagoParcial(){
 
 function delPago(i){
   if(!confirm('¿Eliminar?'))return;
-  S.pagosprog.splice(i,1);
+  const _d=S.pagosprog.splice(i,1)[0];
   sv(KEYS.pagosprog,S.pagosprog);
+  if(_d)delCloud(KEYS.pagosprog,_d.id);
   renderPagos();renderDashPagosAlert();
 }
 
@@ -2345,7 +2366,7 @@ function savePed(){
   S.pedidos.push({id:uid(),cliente:document.getElementById('pd-cliente').value,neg:document.getElementById('pd-neg').value,producto:document.getElementById('pd-producto').value,monto:document.getElementById('pd-monto').value,estado:document.getElementById('pd-estado').value,fecha:document.getElementById('pd-fecha').value,contacto:document.getElementById('pd-contacto').value,notas:document.getElementById('pd-notas').value});
   sv(KEYS.pedidos,S.pedidos);closeModal('modal-ped');renderPed();toast('Pedido guardado ✓');
 }
-function delPed(i){if(!confirm('¿Eliminar?'))return;S.pedidos.splice(i,1);sv(KEYS.pedidos,S.pedidos);renderPed();}
+function delPed(i){if(!confirm('¿Eliminar?'))return;const _d=S.pedidos.splice(i,1)[0];sv(KEYS.pedidos,S.pedidos);if(_d)delCloud(KEYS.pedidos,_d.id);renderPed();}
 
 
 // ---- MOBILE NAV ----
