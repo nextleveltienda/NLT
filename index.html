@@ -181,6 +181,21 @@ textarea{resize:vertical;min-height:80px}
 .del-btn{background:none;border:none;color:#424038;cursor:pointer;font-size:16px;padding:2px 6px;border-radius:6px;transition:.1s}
 .del-btn:hover{color:#b84848;background:rgba(184,72,72,.1)}
 .empty{text-align:center;padding:40px;color:#424038;font-size:13px}
+.idea-card{display:flex;flex-direction:column}
+.idea-pinned{border-color:rgba(212,168,50,.5)!important;box-shadow:0 0 0 1px rgba(212,168,50,.18)}
+.md-body{font-size:12px;color:#c8c6c0;line-height:1.5;margin:8px 0;overflow-x:auto}
+.md-body h1,.md-body h2,.md-body h3,.md-body h4{color:#e8e6e0;margin:8px 0 4px;font-size:13px}
+.md-body p{margin:5px 0}
+.md-body ul,.md-body ol{margin:5px 0 5px 18px;padding:0}
+.md-body li{margin:2px 0}
+.md-body a{color:#d4a832}
+.md-body code{background:rgba(0,0,0,.4);padding:1px 5px;border-radius:4px;font-size:11px;color:#d4a832}
+.md-body strong{color:#e8e6e0}
+.md-body blockquote{border-left:3px solid rgba(212,168,50,.4);padding-left:8px;margin:6px 0;color:#a8a6a0}
+.md-body hr{border:none;border-top:1px solid rgba(212,168,50,.15);margin:8px 0}
+.md-table{border-collapse:collapse;width:100%;margin:8px 0;font-size:11px}
+.md-table th,.md-table td{border:1px solid rgba(212,168,50,.18);padding:5px 7px;text-align:left;vertical-align:top}
+.md-table th{background:rgba(212,168,50,.1);color:#d4a832}
 .export-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
 .stat-box{background:rgba(0,0,0,.25);border:1px solid rgba(212,168,50,.1);border-radius:10px;padding:14px;text-align:center}
 .stat-box .n{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;color:#d4a832}
@@ -555,6 +570,7 @@ const TABLE_MAP = {
   nl2_mets:      'nlt_mets',
   nl2_clients:   'nlt_clients',
   nl2_angulos:   'nlt_angulos',
+  nl2_ideas:     'nlt_ideas',
 };
 
 // ── REGISTRO DE SUBIDAS PENDIENTES ──────────────────────────────────
@@ -693,6 +709,7 @@ async function loadFromCloud() {
   S.mets      = ld('nl2_mets',[]);
   S.clients   = ld('nl2_clients',[]);
   S.angulos   = ld('nl2_angulos',[]);
+  S.ideas     = ld('nl2_ideas',[]);
   hideSyncBanner();
   renderDash();
 }
@@ -751,6 +768,7 @@ function hideSyncBanner() {
     <div class="nav-section-label">Tienda</div>
     <div class="nav-item" onclick="playClick();nav('contenido',this)"><div class="nav-dot"></div><span class="nav-text">Contenido</span></div>
     <div class="nav-item" onclick="playClick();nav('angulos',this)"><div class="nav-dot"></div><span class="nav-text">Ángulos</span></div>
+    <div class="nav-item" onclick="playClick();nav('ideas',this)"><div class="nav-dot"></div><span class="nav-text">Ideas</span></div>
     <div class="nav-item" onclick="playClick();nav('proveedores',this)"><div class="nav-dot"></div><span class="nav-text">Proveedores</span></div>
     <div class="nav-item" onclick="playClick();nav('metricas',this)"><div class="nav-dot"></div><span class="nav-text">Métricas</span></div>
 
@@ -893,6 +911,24 @@ function hideSyncBanner() {
     <table><thead><tr><th>Ángulo</th><th>Tipo</th><th>Primer contacto</th><th>Último contacto</th><th>Para AD</th><th>Ventas</th><th></th></tr></thead>
     <tbody id="ang-table"></tbody></table>
   </div>
+</div>
+
+<!-- IDEAS -->
+<div class="page" id="p-ideas">
+  <div class="page-title">Ideas</div>
+  <div class="page-sub">Keywords, ideas y estrategias para repasar — Marketplace y más</div>
+  <div class="grid-3" id="ideas-metrics" style="margin-bottom:20px"></div>
+  <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+    <input type="text" id="ideas-search" placeholder="🔍 Buscar por título, contenido o tag..." oninput="ideaSearch(this.value)" style="flex:1;min-width:160px">
+    <button class="btn btn-gold btn-sm" onclick="openIdeaModal()">+ Nueva idea</button>
+  </div>
+  <div class="filters-row" style="margin-bottom:16px" id="ideas-filters">
+    <button class="filter-btn active" onclick="setIdeaFilter('todos',this)">Todas</button>
+    <button class="filter-btn" onclick="setIdeaFilter('idea',this)">💡 Ideas</button>
+    <button class="filter-btn" onclick="setIdeaFilter('keywords',this)">🔍 Keywords</button>
+    <button class="filter-btn" onclick="setIdeaFilter('estrategia',this)">🧠 Estrategias</button>
+  </div>
+  <div class="pagos-grid" id="ideas-grid"></div>
 </div>
 
 <!-- PROVEEDORES -->
@@ -1327,6 +1363,27 @@ function hideSyncBanner() {
   </div>
 </div>
 
+<!-- IDEA -->
+<div class="modal-bg" id="modal-idea">
+  <div class="modal">
+    <h3>Nueva idea</h3>
+    <div class="form-row"><label>Título</label><input type="text" id="idea-titulo" placeholder="Ej: Keywords Marketplace celulares"></div>
+    <div class="form-row cols2">
+      <div><label>Tipo</label><select id="idea-tipo"><option value="idea">💡 Idea</option><option value="keywords">🔍 Keywords</option><option value="estrategia">🧠 Estrategia / IA</option></select></div>
+      <div><label>Negocio</label><select id="idea-neg"><option>General</option><option>Hogar</option><option>Tecnología</option><option>Ropa</option></select></div>
+    </div>
+    <div class="form-row cols2">
+      <div><label>Estado</label><select id="idea-estado"><option>Nueva</option><option>Probando</option><option>Aplicada</option><option>Descartada</option></select></div>
+      <div><label>Tags (separados por coma)</label><input type="text" id="idea-tags" placeholder="marketplace, fotos, algoritmo"></div>
+    </div>
+    <div class="form-row"><label>Contenido — soporta Markdown (**negrita**, tablas, listas, # títulos)</label><textarea id="idea-contenido" rows="9" placeholder="Pegá acá tu idea, lista de keywords o info generada con IA..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-idea');_editIdeaId=null">Cancelar</button>
+      <button class="btn btn-gold" onclick="saveIdea()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- PROVEEDOR -->
 <div class="modal-bg" id="modal-prov">
   <div class="modal">
@@ -1532,6 +1589,7 @@ const KEYS={
   pedidos:'nl2_pedidos',
   pagosprog:'nl2_pagosprog',
   angulos:'nl2_angulos',provs:'nl2_provs',
+  ideas:'nl2_ideas',
   embedUrls:'nl2_embedUrls'
 };
 
@@ -1548,6 +1606,7 @@ let S={
   pagosprog: ld(KEYS.pagosprog,[]),
   angulos: ld(KEYS.angulos,[]),
   provs: ld(KEYS.provs,[]),
+  ideas: ld(KEYS.ideas,[]),
   embedUrls: ld(KEYS.embedUrls,{stock:'',mlsim:''})
 };
 
@@ -1597,7 +1656,7 @@ function nav(id,el){
   document.getElementById('stk-body').style.display='none';
   setTimeout(()=>{ const t=document.querySelector('.stk-tab'); if(t) stkTabExec('hogar',t); },50);
 }
-const renders={dashboard:renderDash,accionables:renderAcc,contenido:renderCont,angulos:renderAng,proveedores:renderProv,metricas:renderMet,clientes:renderCli,finanzas:renderFin,pedidos:renderPed,pagos:renderPagos,exportar:renderExp,stock:renderStock,mlsim:function(){renderML();}};
+const renders={dashboard:renderDash,accionables:renderAcc,contenido:renderCont,angulos:renderAng,ideas:renderIdeas,proveedores:renderProv,metricas:renderMet,clientes:renderCli,finanzas:renderFin,pedidos:renderPed,pagos:renderPagos,exportar:renderExp,stock:renderStock,mlsim:function(){renderML();}};
   if(renders[id])renders[id]();
   // móvil: actualizar título y cerrar sidebar
   const t=document.getElementById('mob-page-title');
@@ -2391,6 +2450,139 @@ function savePed(){
 }
 function delPed(i){if(!confirm('¿Eliminar?'))return;const _d=S.pedidos.splice(i,1)[0];sv(KEYS.pedidos,S.pedidos);if(_d)delCloud(KEYS.pedidos,_d.id);renderPed();}
 
+// ---- IDEAS ----
+// Render de Markdown minimalista y autocontenido (sin dependencias externas).
+function _esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function _mdInline(s){
+  // s ya viene escapado
+  s=s.replace(/`([^`]+)`/g,'<code>$1</code>');
+  s=s.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+  s=s.replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g,'$1<em>$2</em>');
+  s=s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+  return s;
+}
+function mdToHtml(md){
+  const lines=String(md||'').replace(/\r\n/g,'\n').split('\n');
+  let html='',i=0,listType=null,listBuf=[];
+  function closeList(){ if(listType){ html+='<'+listType+'>'+listBuf.join('')+'</'+listType+'>'; listType=null; listBuf=[]; } }
+  const parseRow=(l)=>l.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(c=>_mdInline(_esc(c.trim())));
+  while(i<lines.length){
+    const line=lines[i], t=line.trim();
+    // Tabla: fila con | y siguiente linea separadora ---
+    if(/^\|.*\|/.test(t) && i+1<lines.length){
+      const sep=lines[i+1].trim();
+      if(/^[\s|:-]+$/.test(sep) && sep.indexOf('-')>=0 && sep.indexOf('|')>=0){
+        closeList();
+        const headers=parseRow(line); i+=2; const rows=[];
+        while(i<lines.length && /^\|.*\|/.test(lines[i].trim())){ rows.push(parseRow(lines[i])); i++; }
+        html+='<table class="md-table"><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+
+          rows.map(r=>'<tr>'+r.map(c=>'<td>'+c+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+        continue;
+      }
+    }
+    if(/^#{1,6}\s/.test(t)){ closeList(); const lvl=Math.min(t.match(/^#+/)[0].length,4); html+='<h'+lvl+'>'+_mdInline(_esc(t.replace(/^#+\s/,'')))+'</h'+lvl+'>'; i++; continue; }
+    if(/^(-{3,}|\*{3,}|_{3,})$/.test(t)){ closeList(); html+='<hr>'; i++; continue; }
+    if(/^>\s?/.test(t)){ closeList(); html+='<blockquote>'+_mdInline(_esc(t.replace(/^>\s?/,'')))+'</blockquote>'; i++; continue; }
+    let m;
+    if((m=t.match(/^[-*+]\s+(.*)$/))){ if(listType!=='ul'){closeList();listType='ul';} listBuf.push('<li>'+_mdInline(_esc(m[1]))+'</li>'); i++; continue; }
+    if((m=t.match(/^\d+\.\s+(.*)$/))){ if(listType!=='ol'){closeList();listType='ol';} listBuf.push('<li>'+_mdInline(_esc(m[1]))+'</li>'); i++; continue; }
+    if(t===''){ closeList(); i++; continue; }
+    closeList(); html+='<p>'+_mdInline(_esc(t))+'</p>'; i++;
+  }
+  closeList();
+  return html;
+}
+
+const IDEA_TIPO_LABEL={idea:'💡 Idea',keywords:'🔍 Keywords',estrategia:'🧠 Estrategia'};
+let ideaFilter='todos', ideaQuery='', _editIdeaId=null;
+function setIdeaFilter(f,el){ ideaFilter=f; document.querySelectorAll('#ideas-filters .filter-btn').forEach(b=>b.classList.remove('active')); if(el)el.classList.add('active'); renderIdeas(); }
+function ideaSearch(v){ ideaQuery=(v||'').toLowerCase(); renderIdeas(); }
+
+function renderIdeas(){
+  const wrap=document.getElementById('ideas-grid'); if(!wrap)return;
+  const all=S.ideas||[];
+  let list=all.slice();
+  if(ideaFilter!=='todos') list=list.filter(x=>x.tipo===ideaFilter);
+  if(ideaQuery) list=list.filter(x=>((x.titulo||'')+' '+(x.contenido||'')+' '+(x.tags||'')).toLowerCase().indexOf(ideaQuery)>=0);
+  list.sort((a,b)=>(b.fijado?1:0)-(a.fijado?1:0));
+  const mEl=document.getElementById('ideas-metrics');
+  if(mEl){
+    const porRepasar=all.filter(x=>x.tipo==='estrategia'&&!x.repasado).length;
+    mEl.innerHTML='<div class="metric-card"><div class="metric-label">Total ideas</div><div class="metric-value gold">'+all.length+'</div></div>'+
+      '<div class="metric-card"><div class="metric-label">Estrategias sin repasar</div><div class="metric-value '+(porRepasar?'gold':'')+'">'+porRepasar+'</div></div>'+
+      '<div class="metric-card"><div class="metric-label">Mostrando</div><div class="metric-value">'+list.length+'</div></div>';
+  }
+  if(!list.length){ wrap.innerHTML='<div class="empty" style="grid-column:1/-1">Sin ideas todavía. Tocá "+ Nueva idea" para empezar.</div>'; return; }
+  wrap.innerHTML=list.map(it=>{
+    const col=NEG_COLORS[it.neg]||'#d4a832';
+    const tags=(it.tags||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const tagsHtml=tags.map(t=>'<span class="badge" style="background:rgba(212,168,50,.1);color:#d4a832;border:1px solid rgba(212,168,50,.25)">'+_esc(t)+'</span>').join(' ');
+    return '<div class="pago-card idea-card'+(it.fijado?' idea-pinned':'')+'">'+
+      '<div class="pago-header"><div>'+
+        '<div class="pago-nombre">'+(it.fijado?'📌 ':'')+_esc(it.titulo||'(sin título)')+'</div>'+
+        '<div class="pago-meta"><span class="badge" style="background:'+col+'18;color:'+col+'">'+(IDEA_TIPO_LABEL[it.tipo]||it.tipo||'')+'</span> · '+_esc(it.neg||'')+'</div>'+
+      '</div><span class="badge" style="background:rgba(122,120,112,.15);color:#a8a6a0">'+_esc(it.estado||'')+'</span></div>'+
+      (tagsHtml?'<div style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0">'+tagsHtml+'</div>':'')+
+      (it.contenido?'<div class="md-body">'+mdToHtml(it.contenido)+'</div>':'')+
+      '<div class="pago-actions">'+
+        '<button class="btn btn-outline btn-sm" onclick="openIdeaModal(\''+it.id+'\')">✏️ Editar</button>'+
+        '<button class="btn btn-outline btn-sm" onclick="copyIdea(\''+it.id+'\')">📋 Copiar</button>'+
+        '<button class="btn btn-outline btn-sm" onclick="toggleIdeaPin(\''+it.id+'\')">'+(it.fijado?'📌 Quitar':'📌 Fijar')+'</button>'+
+        (it.tipo==='estrategia'?'<button class="btn btn-outline btn-sm" onclick="toggleIdeaRepasado(\''+it.id+'\')">'+(it.repasado?'✓ Repasado':'Marcar repasado')+'</button>':'')+
+        '<button class="del-btn" onclick="delIdea(\''+it.id+'\')">×</button>'+
+      '</div></div>';
+  }).join('');
+}
+
+function openIdeaModal(id){
+  _editIdeaId=id||null;
+  const it=id?(S.ideas||[]).find(x=>x.id===id):null;
+  openModal('modal-idea');
+  setTimeout(()=>{
+    const h=document.querySelector('#modal-idea h3'); if(h)h.textContent=it?'Editar idea':'Nueva idea';
+    document.getElementById('idea-titulo').value=it?(it.titulo||''):'';
+    document.getElementById('idea-tipo').value=it?(it.tipo||'idea'):'idea';
+    document.getElementById('idea-neg').value=it?(it.neg||'General'):'General';
+    document.getElementById('idea-estado').value=it?(it.estado||'Nueva'):'Nueva';
+    document.getElementById('idea-tags').value=it?(it.tags||''):'';
+    document.getElementById('idea-contenido').value=it?(it.contenido||''):'';
+  },40);
+}
+function saveIdea(){
+  const titulo=document.getElementById('idea-titulo').value.trim();
+  const contenido=document.getElementById('idea-contenido').value;
+  if(!titulo && !contenido.trim()){ toast('Escribí un título o contenido'); return; }
+  if(!S.ideas)S.ideas=[];
+  const data={
+    titulo,
+    tipo:document.getElementById('idea-tipo').value,
+    neg:document.getElementById('idea-neg').value,
+    estado:document.getElementById('idea-estado').value,
+    tags:document.getElementById('idea-tags').value.trim(),
+    contenido
+  };
+  if(_editIdeaId){
+    const it=S.ideas.find(x=>x.id===_editIdeaId);
+    if(it)Object.assign(it,data);
+  } else {
+    S.ideas.unshift({id:uid(),...data,fijado:false,repasado:false});
+  }
+  sv(KEYS.ideas,S.ideas);
+  closeModal('modal-idea'); _editIdeaId=null; renderIdeas();
+  toast('Idea guardada ✓');
+}
+function delIdea(id){
+  if(!confirm('¿Eliminar esta idea?'))return;
+  const it=(S.ideas||[]).find(x=>x.id===id);
+  S.ideas=(S.ideas||[]).filter(x=>x.id!==id);
+  sv(KEYS.ideas,S.ideas);
+  if(it)delCloud(KEYS.ideas,it.id);
+  renderIdeas();
+}
+function toggleIdeaPin(id){ const it=(S.ideas||[]).find(x=>x.id===id); if(!it)return; it.fijado=!it.fijado; sv(KEYS.ideas,S.ideas); renderIdeas(); }
+function toggleIdeaRepasado(id){ const it=(S.ideas||[]).find(x=>x.id===id); if(!it)return; it.repasado=!it.repasado; sv(KEYS.ideas,S.ideas); renderIdeas(); }
+function copyIdea(id){ const it=(S.ideas||[]).find(x=>x.id===id); if(!it)return; const txt=it.contenido||''; (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast('Contenido copiado ✓')).catch(()=>toast('No se pudo copiar')); }
+
 
 // ---- MOBILE NAV ----
 function toggleMobNav(){
@@ -2405,7 +2597,7 @@ function closeMobNav(){
 // Títulos topbar móvil
 const PAGE_TITLES = {
   dashboard:'Dashboard',accionables:'Accionables',contenido:'Contenido',
-  angulos:'Ángulos',proveedores:'Proveedores',metricas:'Métricas',
+  angulos:'Ángulos',ideas:'Ideas',proveedores:'Proveedores',metricas:'Métricas',
   pedidos:'Pedidos',pagos:'Pagos Programados',clientes:'Clientes',finanzas:'Finanzas',
   stock:'Stock',mlsim:'Simulador ML',exportar:'Exportar'
 };
