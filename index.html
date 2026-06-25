@@ -557,6 +557,16 @@ const TABLE_MAP = {
   nl2_angulos:   'nlt_angulos',
 };
 
+// ── REGISTRO DE SUBIDAS PENDIENTES ──────────────────────────────────
+// Guarda los ids que se grabaron en local pero cuya subida a la nube todavía no
+// se confirmó. La nube es la fuente de verdad entre dispositivos; al cargar solo
+// se conservan filas locales que estén en este registro (subida pendiente), no la
+// basura vieja de otros dispositivos. Eso evita que el total se "infle".
+function _getPending(){ try{ return JSON.parse(localStorage.getItem('nlt_pending')||'{}'); }catch(e){ return {}; } }
+function _savePending(p){ try{ localStorage.setItem('nlt_pending', JSON.stringify(p)); }catch(e){} }
+function _markPending(key, ids){ const p=_getPending(); const s=p[key]||{}; (ids||[]).forEach(id=>{ if(id) s[id]=1; }); p[key]=s; _savePending(p); }
+function _clearPending(key, ids){ const p=_getPending(); if(!p[key])return; (ids||[]).forEach(id=>{ delete p[key][id]; }); _savePending(p); }
+
 // Guardar = SOLO upsert (insert/update). NUNCA borra filas acá: un guardado jamás
 // debe eliminar datos de la nube. Los borrados son explícitos vía delCloud().
 // (Antes esta función borraba "lo que no estuviera en el array local" y también
@@ -572,6 +582,7 @@ async function svCloud(key, arr) {
       const chunk = arr.slice(i,i+50).map(r => ({...r}));
       await supa.from(table).upsert(chunk, { onConflict: 'id', ignoreDuplicates: false });
     }
+    _clearPending(key, arr.map(r => r && r.id)); // subida confirmada → ya no es pendiente
   } catch(e) { console.warn('svCloud upsert error:', e); }
 }
 
@@ -598,6 +609,7 @@ async function replaceCloud(key, arr) {
     for(let i=0; i<safe.length; i+=50) {
       await supa.from(table).upsert(safe.slice(i,i+50).map(r=>({...r})), { onConflict: 'id', ignoreDuplicates: false });
     }
+    _clearPending(key, safe.map(r=>r&&r.id)); // import confirmado en la nube
   } catch(e) { console.warn('replaceCloud error:', e); }
 }
 
@@ -632,13 +644,17 @@ async function flushPending(){
   if(_pendingWrites.size) await Promise.allSettled([..._pendingWrites]);
 }
 
-// Une nube + local por id. La nube es autoritativa para filas presentes en ambos;
-// las filas que sólo existen en local (subida aún pendiente) se conservan: así no se
-// pierden los registros recién creados que todavía no llegaron a Supabase.
-function mergeById(local, cloud){
+// La NUBE es la fuente de verdad. Se toman todas sus filas, y de lo local SOLO se
+// conservan las filas cuya subida sigue pendiente (presentes en el registro
+// _pending) y que todavía no están en la nube. Así no se pierde lo recién agregado
+// sin conexión, pero tampoco se "resucita" basura vieja de otro dispositivo (que es
+// lo que inflaba el total en el celular).
+function mergeAuthoritative(cloud, local, pendingSet){
   const byId = new Map();
   for(const r of (cloud||[])){ if(r && typeof r==='object') byId.set(r.id || (r.id=uid()), r); }
-  for(const r of (local||[])){ if(r && typeof r==='object' && r.id && !byId.has(r.id)) byId.set(r.id, r); }
+  for(const r of (local||[])){
+    if(r && typeof r==='object' && r.id && pendingSet[r.id] && !byId.has(r.id)) byId.set(r.id, r);
+  }
   return [...byId.values()];
 }
 
@@ -647,18 +663,22 @@ function sv(k,v){
   // compartan el mismo id y la fusión al recargar no duplique ni pierda datos.
   if(Array.isArray(v)) v.forEach(r=>{ if(r && typeof r==='object' && !r.id) r.id=uid(); });
   try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}
-  if(window.svCloud&&k&&k.startsWith('nl2_')){try{_trackWrite(window.svCloud(k,v));}catch(e){}}
+  if(window.svCloud&&k&&k.startsWith('nl2_')){
+    if(Array.isArray(v)) _markPending(k, v.map(r=>r&&r.id)); // pendiente hasta confirmar subida
+    try{_trackWrite(window.svCloud(k,v));}catch(e){}
+  }
 }
 
 // ── CARGA INICIAL DESDE SUPABASE ────────────────────────────────────
 async function loadFromCloud() {
   showSyncBanner('Sincronizando con la nube...');
   const keys = Object.keys(TABLE_MAP);
+  const pendingAll = _getPending();
   for(const key of keys) {
     const cloud = await ldCloud(key);
     if(cloud === null) continue; // error de red: conservar lo local intacto, no pisar
     const local = ld(key, []);
-    const merged = mergeById(local, cloud); // conserva filas locales aún no subidas
+    const merged = mergeAuthoritative(cloud, local, pendingAll[key]||{}); // nube manda + locales pendientes
     localStorage.setItem(key, JSON.stringify(merged));
   }
   // Recargar estado desde cloud
@@ -2094,7 +2114,10 @@ function importData(e){
         if(Array.isArray(val)) val.forEach(r=>{ if(r && typeof r==='object' && !r.id) r.id=uid(); }); // ids estables
         try{ localStorage.setItem(key, JSON.stringify(val)); }catch(_e){}
         S[k]=val;
-        if(String(key).startsWith('nl2_') && window.replaceCloud) replaceCloud(key, val); // reemplazo deliberado en la nube
+        if(String(key).startsWith('nl2_')){
+          if(Array.isArray(val)) _markPending(key, val.map(r=>r&&r.id)); // proteger import hasta confirmar subida
+          if(window.replaceCloud) replaceCloud(key, val); // reemplazo deliberado en la nube
+        }
       });
       if(data._meta) toast(`Backup del ${data._meta.fecha?.split('T')[0]||'?'} importado ✓`);
       else toast('Importado correctamente ✓');
