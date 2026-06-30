@@ -854,7 +854,7 @@ function hideSyncBanner() {
     <button class="filter-btn" onclick="setAccFilter('media',this)"><span style="color:#c89628">●</span> Media</button>
     <button class="filter-btn" onclick="setAccFilter('normal',this)"><span style="color:#3d6aaa">●</span> Normal</button>
     <div style="flex:1"></div>
-    <button class="btn btn-gold btn-sm" onclick="openModal('modal-task')">+ Nueva tarea</button>
+    <button class="btn btn-gold btn-sm" onclick="openTaskModal()">+ Nueva tarea</button>
   </div>
 
   <div class="card" style="padding:8px">
@@ -945,7 +945,7 @@ function hideSyncBanner() {
       <button class="filter-btn" onclick="setProvFilter('Electrónica',this)">Electrónica</button>
       <button class="filter-btn" onclick="setProvFilter('Otro',this)">Otro</button>
     </div>
-    <button class="btn btn-gold btn-sm" onclick="openModal('modal-prov')">+ Agregar proveedor</button>
+    <button class="btn btn-gold btn-sm" onclick="openProvModal()">+ Agregar proveedor</button>
   </div>
   <div class="table-wrap">
     <table><thead><tr><th></th><th>Nombre</th><th>Rubro</th><th>Contacto</th><th>Zona</th><th>Variaciones</th><th>Notas</th><th></th></tr></thead>
@@ -1275,7 +1275,7 @@ function hideSyncBanner() {
     </div>
     <div class="form-row"><label>Notas (opcional)</label><textarea id="t-notas" rows="2" placeholder="Detalles, links, contexto..."></textarea></div>
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeModal('modal-task')">Cancelar</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-task');_editTaskId=null">Cancelar</button>
       <button class="btn btn-gold" onclick="saveTask()">Guardar</button>
     </div>
   </div>
@@ -1406,7 +1406,7 @@ function hideSyncBanner() {
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeModal('modal-prov')">Cancelar</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-prov');_editProvId=null">Cancelar</button>
       <button class="btn btn-gold" onclick="saveProv()">Guardar</button>
     </div>
   </div>
@@ -1694,6 +1694,16 @@ function addChipBtn(wrapId,inputId){
   chip.appendChild(x);wrap.appendChild(chip);inp.value='';
 }
 function getChips(wrapId){return Array.from(document.querySelectorAll('#'+wrapId+' .chip')).map(c=>c.textContent.replace('×','').trim());}
+function setChips(wrapId,arr){
+  const wrap=document.getElementById(wrapId);if(!wrap)return;
+  Array.from(wrap.querySelectorAll('.chip')).forEach(c=>c.remove());
+  (arr||[]).forEach(val=>{
+    if(val==null||val==='')return;
+    const chip=document.createElement('div');chip.className='chip';chip.textContent=val;
+    const x=document.createElement('span');x.className='chip-x';x.textContent='×';x.onclick=()=>chip.remove();
+    chip.appendChild(x);wrap.appendChild(chip);
+  });
+}
 
 // ---- DASHBOARD ----
 function setDashPeriod(p,el){
@@ -1859,6 +1869,7 @@ function renderAcc(){
         ${t.notas?`<span style="font-size:11px;color:#424038;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${t.notas}">${t.notas}</span>`:''}
         <span class="badge" style="background:${NEG_COLORS[t.neg]||'#d4a832'}18;color:${NEG_COLORS[t.neg]||'#d4a832'};border-color:${NEG_COLORS[t.neg]||'#d4a832'}30;font-size:9px;flex-shrink:0">${t.neg||'General'}</span>
         <span class="prio-${t.prio||'normal'}" style="flex-shrink:0">${PRIO_LABELS[t.prio||'normal']}</span>
+        <span class="task-edit" onclick="openTaskModal('${t.id}')" title="Editar" style="cursor:pointer;color:#7a7870;flex-shrink:0;font-size:13px">✏️</span>
         <span class="task-del" onclick="delTask('${t.id}')">×</span>
       </div>
     `).join('');
@@ -1877,11 +1888,30 @@ function delTask(id){
   S.tasks=S.tasks.filter(x=>x.id!==id);
   sv(KEYS.tasks,S.tasks);delCloud(KEYS.tasks,id);renderAcc();
 }
+let _editTaskId=null;
+function openTaskModal(id){
+  _editTaskId=id||null;
+  const t=id?S.tasks.find(x=>x.id===id):null;
+  openModal('modal-task');
+  setTimeout(()=>{
+    const h=document.querySelector('#modal-task h3'); if(h)h.textContent=t?'Editar Tarea':'Nueva Tarea';
+    document.getElementById('t-texto').value=t?(t.texto||''):'';
+    document.getElementById('t-prio').value=t?(t.prio||'media'):'media';
+    document.getElementById('t-neg').value=t?(t.neg||'General'):'General';
+    document.getElementById('t-notas').value=t?(t.notas||''):'';
+  },40);
+}
 function saveTask(){
   const texto=document.getElementById('t-texto').value.trim();
   if(!texto){toast('Escribí una tarea');return;}
-  S.tasks.push({id:uid(),texto,prio:document.getElementById('t-prio').value,neg:document.getElementById('t-neg').value,notas:document.getElementById('t-notas').value,done:false});
-  sv(KEYS.tasks,S.tasks);closeModal('modal-task');renderAcc();toast('Tarea agregada ✓');
+  const data={texto,prio:document.getElementById('t-prio').value,neg:document.getElementById('t-neg').value,notas:document.getElementById('t-notas').value};
+  if(_editTaskId){
+    const t=S.tasks.find(x=>x.id===_editTaskId);
+    if(t)Object.assign(t,data);
+  } else {
+    S.tasks.push({id:uid(),...data,done:false});
+  }
+  sv(KEYS.tasks,S.tasks);closeModal('modal-task');_editTaskId=null;renderAcc();toast('Tarea guardada ✓');
 }
 
 // Drag & drop
@@ -1993,13 +2023,34 @@ function renderProv(){
       <td>${r.zona||'—'}</td>
       <td><div class="prov-variations">${(r.vars||[]).map(v=>`<span class="prov-var-chip">${v}</span>`).join('')||'<span style="color:#424038;font-size:11px">—</span>'}</div></td>
       <td class="truncate">${r.notas||'—'}</td>
-      <td><button class="del-btn" onclick="delProv(${ri})">×</button></td>
+      <td style="white-space:nowrap"><button class="del-btn" onclick="openProvModal('${r.id}')" title="Editar" style="color:#d4a832">✎</button> <button class="del-btn" onclick="delProv(${ri})" title="Eliminar">×</button></td>
     </tr>`;
   }).join(''):'<tr><td colspan="8" class="empty">Sin proveedores cargados</td></tr>';
 }
+let _editProvId=null;
+function openProvModal(id){
+  _editProvId=id||null;
+  const p=id?S.provs.find(x=>x.id===id):null;
+  openModal('modal-prov');
+  setTimeout(()=>{
+    const h=document.querySelector('#modal-prov h3'); if(h)h.textContent=p?'Editar Proveedor':'Agregar Proveedor';
+    document.getElementById('p-nombre').value=p?(p.nombre||''):'';
+    document.getElementById('p-rubro').value=p?(p.rubro||'Calzado'):'Calzado';
+    document.getElementById('p-contacto').value=p?(p.contacto||''):'';
+    document.getElementById('p-zona').value=p?(p.zona||''):'';
+    document.getElementById('p-notas').value=p?(p.notas||''):'';
+    setChips('chips-pvar', p?(p.vars||[]):[]);
+  },40);
+}
 function saveProv(){
-  S.provs.push({id:uid(),nombre:document.getElementById('p-nombre').value,rubro:document.getElementById('p-rubro').value,contacto:document.getElementById('p-contacto').value,zona:document.getElementById('p-zona').value,notas:document.getElementById('p-notas').value,vars:getChips('chips-pvar')});
-  sv(KEYS.provs,S.provs);closeModal('modal-prov');renderProv();toast('Proveedor guardado ✓');
+  const data={nombre:document.getElementById('p-nombre').value,rubro:document.getElementById('p-rubro').value,contacto:document.getElementById('p-contacto').value,zona:document.getElementById('p-zona').value,notas:document.getElementById('p-notas').value,vars:getChips('chips-pvar')};
+  if(_editProvId){
+    const p=S.provs.find(x=>x.id===_editProvId);
+    if(p)Object.assign(p,data);
+  } else {
+    S.provs.push({id:uid(),...data});
+  }
+  sv(KEYS.provs,S.provs);closeModal('modal-prov');_editProvId=null;renderProv();toast('Proveedor guardado ✓');
 }
 function delProv(i){if(!confirm('¿Eliminar?'))return;const _d=S.provs.splice(i,1)[0];sv(KEYS.provs,S.provs);if(_d)delCloud(KEYS.provs,_d.id);renderProv();}
 
